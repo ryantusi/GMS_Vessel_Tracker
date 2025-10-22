@@ -1,12 +1,21 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from chatbot.chatbot import process_user_input, get_greeting
-from helper import AISPortMatcher
+from chatbot import COMPASSChatbot
+from helper import AISPortMatcher 
 
 app = Flask(__name__)
 CORS(app)
 
-# --- Initialize your parser class ---
+# --- Global Chatbot and Parser State ---
+# The COMPASSChatbot instance manages the persistent Gemini session
+try:
+    COMPASS = COMPASSChatbot()
+except RuntimeError:
+    # Handle case where Gemini client couldn't initialize (e.g., missing API key)
+    COMPASS = None
+    print("Warning: COMPASS Chatbot is disabled due to a runtime error during initialization.")
+
+# Initialize your parser class (AISPortMatcher is assumed to be in 'helper.py')
 parser = AISPortMatcher("helper/locode.json")
 
 # ----------- ROUTES -------------
@@ -22,12 +31,16 @@ def match_destination():
         return jsonify({"error": "Missing 'destination'"}), 400
 
     destination = data['destination']
-    result = parser.match_destination(destination)
+    # Uses the local AIS parser
+    result = parser.match_destination(destination) 
     return jsonify(result)
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    """Endpoint for chatbot messages"""
+    """Endpoint for chatbot messages. Uses the persistent Gemini session."""
+    if not COMPASS:
+        return jsonify({'error': 'Chat service is currently unavailable.'}), 503
+        
     try:
         data = request.json
         user_message = data.get('message', '').strip()
@@ -35,7 +48,8 @@ def chat():
         if not user_message:
             return jsonify({'error': 'Message cannot be empty'}), 400
         
-        ai_response = process_user_input(user_message)
+        # Use the COMPASS instance to process the message
+        ai_response = COMPASS.process_message(user_message)
         
         return jsonify({
             'success': True,
@@ -43,20 +57,26 @@ def chat():
             'aiResponse': ai_response
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Chat processing error: {e}")
+        return jsonify({'error': 'A communication error occurred with the COMPASS AI.'}), 500
 
 
 @app.route('/api/chat/init', methods=['GET'])
 def init_chat():
-    """Get initial greeting from COMPASS"""
+    """Initializes the Gemini Chat Session and gets the greeting."""
+    if not COMPASS:
+        return jsonify({'error': 'Chat service is currently unavailable.'}), 503
+        
     try:
-        greeting = get_greeting()
+        # Calls the method to initialize the session and get the AI's greeting
+        greeting = COMPASS.init_session()
         return jsonify({
             'success': True,
             'greeting': greeting
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Chat initialization error: {e}")
+        return jsonify({'error': 'Failed to start COMPASS session.'}), 500
 
 
 @app.route('/health', methods=['GET'])

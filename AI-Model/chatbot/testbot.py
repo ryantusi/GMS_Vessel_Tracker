@@ -1,14 +1,12 @@
 import requests
-import random
 import time
+import random
 import re
 import json
 
-# ---- CONFIG ----
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
 MODEL_NAME = "mistral"
 
-# ---- SYSTEM PROMPT ----
 SYSTEM_PROMPT = """You are COMPASS, a specialized maritime vessel tracking assistant designed exclusively for ship tracking inquiries. You operate with precision, brevity, and professionalism.
 
 **YOUR CORE IDENTITY:**
@@ -89,10 +87,11 @@ user_agents = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17 Safari/605.1.15",
 ]
 
-# ---- UTILITY FUNCTIONS ----
+
 def get_random_ua():
     """Rotate user agents."""
     return random.choice(user_agents)
+
 
 def fetch_with_retry(url, headers, retries=3, delay=1.0):
     """Retry logic with exponential backoff."""
@@ -107,6 +106,7 @@ def fetch_with_retry(url, headers, retries=3, delay=1.0):
             if attempt == retries:
                 raise e
             time.sleep(delay * attempt)
+
 
 def ship_data_retrieval(imo_id):
     """Fetch vessel data from AISFriends API."""
@@ -128,38 +128,12 @@ def ship_data_retrieval(imo_id):
         print(f"[DEBUG] API Error: {e}")
         return None
 
+
 def extract_imo_from_text(text):
     """Extract IMO ID from user input. IMO is 7 digits."""
     match = re.search(r'\b(\d{7})\b', text)
     return match.group(1) if match else None
 
-def ask_mistral(user_query, ship_data=None):
-    """
-    Call Mistral with optional ship data context.
-    If ship_data is provided, format it into the prompt.
-    """
-    if ship_data:
-        # Format ship data as readable text
-        ship_context = format_ship_data(ship_data)
-        full_prompt = f"""{SYSTEM_PROMPT}
-
-            [SHIP DATA RETRIEVED]:
-            {ship_context}
-
-            User: {user_query}
-            AI:"""
-    else:
-        full_prompt = f"{SYSTEM_PROMPT}\n\nUser: {user_query}\nAI:"
-
-    payload = {
-        "model": MODEL_NAME,
-        "prompt": full_prompt,
-        "stream": False
-    }
-
-    response = requests.post(OLLAMA_API_URL, json=payload)
-    data = response.json()
-    return data.get("response", "No response from Mistral").strip()
 
 def format_ship_data(data):
     """Format ship data as readable text for Mistral."""
@@ -182,17 +156,43 @@ def format_ship_data(data):
     
     return "\n".join(lines) if lines else "No data available"
 
+
+def ask_mistral(user_query, ship_data=None):
+    """Call Mistral with optional ship data context."""
+    if ship_data:
+        ship_context = format_ship_data(ship_data)
+        full_prompt = f"""{SYSTEM_PROMPT}
+
+[SHIP DATA RETRIEVED]:
+{ship_context}
+
+User: {user_query}
+AI:"""
+    else:
+        full_prompt = f"{SYSTEM_PROMPT}\n\nUser: {user_query}\nAI:"
+
+    payload = {
+        "model": MODEL_NAME,
+        "prompt": full_prompt,
+        "stream": False
+    }
+
+    try:
+        response = requests.post(OLLAMA_API_URL, json=payload, timeout=30)
+        data = response.json()
+        return data.get("response", "No response from Mistral").strip()
+    except Exception as e:
+        print(f"[DEBUG] Mistral Error: {e}")
+        return "Sorry, I couldn't process your request. Please try again."
+
+
 def process_user_input(user_input):
     """
-    Main logic:
-    1. Extract IMO if present
-    2. Ask Mistral what to do
-    3. If Mistral says FETCH_DATA, retrieve it and ask again
-    4. Otherwise, return Mistral's response
+    Main chatbot logic:
+    1. Ask Mistral what to do
+    2. If Mistral says FETCH_DATA, retrieve ship data and ask again
+    3. Otherwise, return Mistral's response
     """
-    # First, check if user provided an IMO
-    imo = extract_imo_from_text(user_input)
-    
     # Get initial Mistral response
     response = ask_mistral(user_input)
     
@@ -211,6 +211,12 @@ def process_user_input(user_input):
                 response = f"IMO {imo_to_fetch} not found in our database. Please verify the IMO ID is correct."
     
     return response
+
+
+def get_greeting():
+    """Get initial greeting from COMPASS."""
+    return ask_mistral("Hello, start the conversation")
+
 
 # ---- CONSOLE TEST ----
 if __name__ == "__main__":
