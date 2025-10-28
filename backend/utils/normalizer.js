@@ -1,6 +1,8 @@
 import fetch from "node-fetch";
-import 'dotenv/config';
-import { getFullData, getVesselData, getBatchData } from "./test.js";
+import "dotenv/config";
+
+// Import API data functions for testing
+import { getFullData, getVesselData, getBatchData } from "./apiData.js";
 
 // NAME NORMALIZATION
 function normalizeName(str) {
@@ -9,7 +11,6 @@ function normalizeName(str) {
   }
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
-
 
 // SHIP TYPE NORMALIZATION
 
@@ -80,11 +81,11 @@ const testTypes = [
   "Yatch",
 ];
 
+// Testing
 // console.log(testTypes.map((t) => ({ raw: t, parsed: normalizeShipType(t) })));
 // console.log(`IMO: ${data.imo}\nType: ${data.type}\nParsed: ` + normalizeShipType(data.type));
 
 // SHIP DESTINATION NORMALIZATION
-
 
 // Normalize destination port by calling the deployed Flask backend
 async function normalizeDestination(rawDest) {
@@ -94,16 +95,16 @@ async function normalizeDestination(rawDest) {
     console.error("FATAL: DESTINATION_DECODER_API is not set in environment.");
     return { error: "API not configured" };
   }
-  
+
   const dest = rawDest.trim().toUpperCase();
-  
+
   try {
     const response = await fetch(DEST_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       // FIX: The body MUST be stringified JSON
-      body: JSON.stringify({ 
-        "destination": dest 
+      body: JSON.stringify({
+        destination: dest,
       }),
     });
 
@@ -149,9 +150,9 @@ const testDestinations = [
 // })();
 
 // FULL NORMALIZATION
-async function normalizeData(imo) {
+async function normalizeData(rawData) {
   // 1. Fetch Raw Data from API
-  const vesselData = await getVesselData(imo);
+  const vesselData = rawData;
 
   // 2. Normalize Name & Ship Type
   vesselData.name = normalizeName(vesselData.name);
@@ -169,7 +170,6 @@ async function normalizeData(imo) {
     vesselData.ais_destination = "Unknown";
   }
   vesselData.reportedDestination = destData["reportedDestination"];
-
 
   return vesselData;
 }
@@ -189,7 +189,7 @@ async function normalizeData(imo) {
 //   // 3. Normalize Data
 //   console.log("NORMALIZING DATA...");
 
-//   // 4. Normalize Name & Ship Type 
+//   // 4. Normalize Name & Ship Type
 //   vesselData.name = normalizeName(vesselData.name);
 //   vesselData.type = normalizeShipType(vesselData.type);
 
@@ -213,4 +213,9 @@ async function normalizeData(imo) {
 
 // Test(9626390);
 
-export { normalizeName, normalizeShipType, normalizeDestination, normalizeData };
+export {
+  normalizeName,
+  normalizeShipType,
+  normalizeDestination,
+  normalizeData,
+};
