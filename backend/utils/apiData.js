@@ -1,5 +1,6 @@
 // test-multi.js
 import fetch from "node-fetch";
+import "dotenv/config";
 
 // Rotate common user agents (mimic real browsers)
 const userAgents = [
@@ -24,9 +25,8 @@ async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
       }
     } catch (error) {
       if (attempt === retries) {
-        throw error; // Final failure
-      }
-      // exponential backoff
+        throw error; 
+      } // exponential backoff
       await new Promise((res) => setTimeout(res, delay * attempt));
     }
   }
@@ -35,23 +35,33 @@ async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
 // Get's Raw Data from AISFriends API
 async function getFullData(imo) {
   const url = `https://www.aisfriends.com/vessel/position/imo:${imo}`;
+
+  // AIS Friends Cookie retrieved from browser session under network tab -> request header -> cookie (keep up to data)
+  const STATIC_COOKIE = process.env.AIS_COOKIE;
+
+  // FIX: Switched to lowercase 'cookie' and encapsulated complex headers
   const headers = {
     "User-Agent": getRandomUA(),
     Accept: "application/json,text/plain,*/*",
     "Accept-Language": "en-US,en;q=0.9",
     Referer: "https://www.aisfriends.com/",
     Connection: "keep-alive",
+    "Accept-Encoding": "gzip, deflate, br", // Mimic browser compression
+    cookie: STATIC_COOKIE,
   };
+  // !!! --- END FIX --- !!!
 
   try {
     const data = await fetchWithRetry(url, { headers }, 4, 1200);
 
     if (!data || !data.imo) {
+      console.log(`[No Data Returned for IMO: ${imo}]`);
       return { imo, error: "No data" };
     }
-
+    console.log(`[Data Retrieved for IMO: ${imo}]`);
     return data;
   } catch (error) {
+    console.error(`[Data Fetch Error for ${imo}] Details: ${error.message}`);
     return { imo, error: error.message };
   }
 }
