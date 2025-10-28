@@ -1,8 +1,15 @@
-import fs from "fs";
-import Fuse from "fuse.js";
-import { getFullData, getVesselData, getBatchData } from "../test.js";
+import fetch from "node-fetch";
+import 'dotenv/config';
+import { getFullData, getVesselData, getBatchData } from "./test.js";
 
-const data = await getVesselData(9668037);
+// NAME NORMALIZATION
+function normalizeName(str) {
+  if (typeof str !== "string" || str.length === 0) {
+    return "";
+  }
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+
 
 // SHIP TYPE NORMALIZATION
 
@@ -78,96 +85,41 @@ const testTypes = [
 
 // SHIP DESTINATION NORMALIZATION
 
-// Normalize destination port using UN/LOCODE data with fuzzy matching
 
-// Load UN/LOCODE data
-const locodeData = JSON.parse(fs.readFileSync("./helper/locode.json", "utf-8"));
-
-// ---- Helpers ----
-function cleanString(str) {
-  return str
-    .toUpperCase()
-    .replace(/[^A-Z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function isNoise(str) {
-  const noise = ["TBA", "ORDER", "FOR ORDER", "UNKNOWN", "N/A", "NONE"];
-  return noise.includes(str);
-}
-
-function normalizeLocode(str) {
-  // normalize locode like "ES LPG" → "ESLPG"
-  return str.replace(/\s+/g, "").toUpperCase();
-}
-
-// Build Fuse index for fuzzy matching (global)
-const fuse = new Fuse(locodeData, {
-  keys: ["port_norm"],
-  threshold: 0.35, // a bit looser for partial matches
-  includeScore: true,
-});
-
-// ---- Main function ----
-function normalizeDestination(rawDest) {
-  if (!rawDest || typeof rawDest !== "string") {
-    return { port: "unknown", country: "unknown" };
+// Normalize destination port by calling the deployed Flask backend
+async function normalizeDestination(rawDest) {
+  // CRITICAL: Ensure the DEST_API environment variable is accessible
+  const DEST_API = process.env.DESTINATION_DECODER_API;
+  if (!DEST_API) {
+    console.error("FATAL: DESTINATION_DECODER_API is not set in environment.");
+    return { error: "API not configured" };
   }
+  
+  const dest = rawDest.trim().toUpperCase();
+  
+  try {
+    const response = await fetch(DEST_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // FIX: The body MUST be stringified JSON
+      body: JSON.stringify({ 
+        "destination": dest 
+      }),
+    });
 
-  // Step 5: Noise / special cases
-  if (isNoise(rawDest)) {
-    return { port: "unknown", country: "unknown" };
-  }
-
-  let dest = cleanString(rawDest);
-
-  // Step 2a: Exact UN/LOCODE match (normalized)
-  if (dest.length === 5) {
-    const exact = locodeData.find((d) => d.locode === dest);
-    if (exact) {
-      return { port: exact.port, country: exact.country };
+    if (response.ok) {
+      // The Flask endpoint returns JSON, so we parse it here.
+      return response.json();
+    } else {
+      // Log the error details from the server response
+      const errorText = await response.text();
+      console.error(`Backend HTTP Error (${response.status}): ${errorText}`);
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
+  } catch (e) {
+    console.error(`Error normalizing destination '${rawDest}':`, e.message);
+    return { error: "Normalization failed" };
   }
-
-  // Step 2b: LOCODE with space (e.g. "ES LPG")
-  if (dest.length === 6 && dest.includes(" ")) {
-    const norm = normalizeLocode(dest);
-    const exact = locodeData.find((d) => d.locode === norm);
-    if (exact) {
-      return { port: exact.port, country: exact.country };
-    }
-  }
-
-  // Step 3: Fuzzy port match
-  let fuzzyResult = fuse.search(dest, { limit: 1 });
-  if (fuzzyResult.length > 0) {
-    const { item, score } = fuzzyResult[0];
-
-    // Allow substring match (e.g. "PORT SAID" vs "PORT SAID EGYPT")
-    if (score <= 0.35 || item.port_norm.includes(dest)) {
-      return { port: item.port, country: item.country };
-    }
-  }
-
-  // Step 4: Country extraction
-  for (const row of locodeData) {
-    const countryUpper = row.country.toUpperCase();
-    if (dest.includes(countryUpper)) {
-      const fuseCountry = new Fuse(
-        locodeData.filter((d) => d.country === row.country),
-        { keys: ["port_norm"], threshold: 0.35, includeScore: true }
-      );
-      const subMatch = fuseCountry.search(dest, { limit: 1 });
-      if (subMatch.length > 0) {
-        const { item } = subMatch[0];
-        return { port: item.port, country: item.country };
-      }
-    }
-  }
-
-  // If nothing matched → unknown
-  return { port: "unknown", country: "unknown" };
 }
 
 // ---- Example tests ----
@@ -175,42 +127,90 @@ const testDestinations = [
   "TRTUZ",
   "KRINC",
   "AE FJR",
-  "BR PNG",
-  "CA-VAN",
-  "PORT SAID",
-  "MONTEVIDEO UYMVD",
-  "ARATU. BRAZIL",
-  "LAGOS NIGERIA",
-  "DAMPIER, AUSTRALIA",
-  "PORTLAND-USA",
-  "INDIA, KOCHI",
   "BEZEE <> GBHUL",
   "LYBEN>>MTMAR",
-  "MXDBT --> USPOA",
   "SGSIN=>BRPMA",
-  '"===BS FPO',
-  "JPMIZ TO CNZOS",
+  "PORT SAID",
   "TBA",
-  "FOR ORDER",
   "GIBRALTAR EAST ANCH",
-  "FUJAIRAH BUNKERING",
-  "GALLE- FOR ORDER",
-  "RONDO FOR ORDERS",
-  "AEFJR FOR ORDERS",
-  "BRAZIL FOR ORDERS",
-  "TG LFW FOR ORDER",
-  "SG SIN(PEBGA)",
-  "ALGECIRAS OPL",
   "UNKNOWN",
-  "N/A",
-  "ES LPG",
   "MAA",
-  "SRIRACAHA",
-  "UMM,QASR",
 ];
 
-for (const d of testDestinations) {
-  console.log(d, "=>", normalizeDestination(d));
+// Wrap the testing loop in an async IIFE (Immediately Invoked Function Expression)
+// to use await safely in the module context.
+// (async () => {
+//     console.log("--- Destination Normalization Tests ---");
+//     for (const d of testDestinations) {
+//         // FIX: Await the asynchronous function call
+//         const result = await normalizeDestination(d);
+//         console.log(`Input: ${d.padEnd(25)} => \nResult: ${JSON.stringify(result)}`);
+//     }
+// })();
+
+// FULL NORMALIZATION
+async function normalizeData(imo) {
+  // 1. Fetch Raw Data from API
+  const vesselData = await getVesselData(imo);
+
+  // 2. Normalize Name & Ship Type
+  vesselData.name = normalizeName(vesselData.name);
+  vesselData.type = normalizeShipType(vesselData.type);
+
+  // 3. Normalize Destination
+  const destData = await normalizeDestination(vesselData.ais_destination);
+  if (destData["matched"]) {
+    vesselData.ais_destination = {
+      destination: `${destData["port"]}, ${destData["country"]}`,
+      lat: destData["lat"],
+      lon: destData["lon"],
+    };
+  } else {
+    vesselData.ais_destination = "Unknown";
+  }
+  vesselData.reportedDestination = destData["reportedDestination"];
+
+
+  return vesselData;
 }
 
-export { normalizeShipType, normalizeDestination };
+// // Fully Function Test
+// async function Test(imo) {
+//   console.log("--- Testing ---");
+//   console.log(`Fetching ${imo} vessel data...`);
+
+//   // 1. Fetch Raw Data from API
+//   const vesselData = await getVesselData(imo);
+
+//   // 2. Print Raw Data
+//   console.log("FETCHED DATA!");
+//   console.log(vesselData);
+
+//   // 3. Normalize Data
+//   console.log("NORMALIZING DATA...");
+
+//   // 4. Normalize Name & Ship Type 
+//   vesselData.name = normalizeName(vesselData.name);
+//   vesselData.type = normalizeShipType(vesselData.type);
+
+//   // 5. Normalize Destination
+//   const destData = await normalizeDestination(vesselData.ais_destination);
+//   if(destData["matched"]) {
+//     vesselData.ais_destination = {
+//       destination: `${destData["port"]}, ${destData["country"]}`,
+//       lat: destData["lat"],
+//       lon: destData["lon"]
+//     };
+//   } else {
+//     vesselData.ais_destination = "Unknown"
+//   }
+//   vesselData.reportedDestination = destData["reportedDestination"];
+
+//   // 6. Print Final Data
+//   console.log("FINAL DATA:");
+//   console.log(vesselData);
+// }
+
+// Test(9626390);
+
+export { normalizeName, normalizeShipType, normalizeDestination, normalizeData };
