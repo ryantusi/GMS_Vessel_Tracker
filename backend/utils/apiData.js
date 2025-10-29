@@ -2,6 +2,9 @@
 import fetch from "node-fetch";
 import "dotenv/config";
 
+// Time 
+const time = new Date();
+
 // Rotate common user agents (mimic real browsers)
 const userAgents = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:129.0) Gecko/20100101 Firefox/129.0",
@@ -39,15 +42,14 @@ async function getFullData(imo) {
   // AIS Friends Cookie retrieved from browser session under network tab -> request header -> cookie (keep up to data)
   const STATIC_COOKIE = process.env.AIS_COOKIE;
 
-  // FIX: Switched to lowercase 'cookie' and encapsulated complex headers
+  // encapsulated complex headers
   const headers = {
     "User-Agent": getRandomUA(),
     Accept: "application/json,text/plain,*/*",
     "Accept-Language": "en-US,en;q=0.9",
     Referer: "https://www.aisfriends.com/",
     Connection: "keep-alive",
-    "Accept-Encoding": "gzip, deflate, br", // Mimic browser compression
-    cookie: STATIC_COOKIE,
+    "Accept-Encoding": "gzip, deflate, br",
   };
   // !!! --- END FIX --- !!!
 
@@ -55,10 +57,10 @@ async function getFullData(imo) {
     const data = await fetchWithRetry(url, { headers }, 4, 1200);
 
     if (!data || !data.imo) {
-      console.log(`[No Data Returned for IMO: ${imo}]`);
+      console.log(`[No Data Returned for IMO: ${imo}] + ${time.toLocaleTimeString()}`);
       return { imo, error: "No data" };
     }
-    console.log(`[Data Retrieved for IMO: ${imo}]`);
+    console.log(`[Data Retrieved for IMO: ${imo}] + ${time.toLocaleTimeString()}`);
     return data;
   } catch (error) {
     console.error(`[Data Fetch Error for ${imo}] Details: ${error.message}`);
@@ -98,9 +100,7 @@ async function getBatchData(imoList) {
     results.push(...batchResults);
   }
 
-  console.log("Final Results:");
-  console.log(results);
-
+  console.log(`Batch Data Retrieval Complete ${time.toLocaleTimeString()} for IMOs: [${imoList.join(", ")}]`);
   return results;
 }
 

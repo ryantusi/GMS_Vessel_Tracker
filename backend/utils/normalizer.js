@@ -163,6 +163,8 @@ async function normalizeData(rawData) {
   if (destData["matched"]) {
     vesselData.ais_destination = {
       destination: `${destData["port"]}, ${destData["country"]}`,
+      port: destData["port"],
+      country: destData["country"],
       lat: destData["lat"],
       lon: destData["lon"],
     };

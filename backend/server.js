@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import "dotenv/config";
-import { getVesselData, getBatchData } from "./utils/apiData.js";
+import { getFullData, getVesselData, getBatchData } from "./utils/apiData.js";
 import { normalizeData } from "./utils/normalizer.js";
 import { createSingleVesselMap, createBatchVesselMap } from "./utils/mapbox.js";
 
@@ -57,7 +57,7 @@ app.get("/api/vessel/:imo", async (req, res) => {
     console.log(`Fetching data for IMO: ${imo}`);
 
     // 1. Get raw vessel data
-    const rawData = await getVesselData(imo);
+    const rawData = await getFullData(imo);
 
     // Check if there was an error fetching data
     if (rawData.error) {
