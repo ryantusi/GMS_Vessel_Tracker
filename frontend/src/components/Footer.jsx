@@ -8,7 +8,9 @@ function Footer() {
           {/* Brand Section */}
           <div>
             <div className="flex items-center mb-4">
-              <Ship size={32} className="mr-3 text-cyan-400" />
+              <div>
+                <img src="/src/assets/ship-tracker.png" width="80" height="80" />
+              </div>
               <div>
                 <h3 className="text-xl font-bold">Vessel Tracker</h3>
                 <p className="text-sm text-gray-400">Live AI-Powered Ship Monitoring</p>

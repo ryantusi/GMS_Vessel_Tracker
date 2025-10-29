@@ -80,12 +80,17 @@ function Home() {
       {/* Hero Section */}
       <div className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-20">
         <div className="container mx-auto px-4 text-center">
-          <div className="flex items-center justify-center mb-6">
+          <div className="flex items-center justify-center mb-6" id="home">
             <Ship size={64} className="mr-4" />
             <h1 className="text-5xl font-bold">Live Ship Vessel Tracker</h1>
           </div>
           <p className="text-xl text-blue-100 mb-8">
-            Track vessels in real-time using AIS data • Monitor ship locations worldwide
+            Track vessels in real-time using AIS data • Monitor ship locations worldwide • AI-Powered Tracking Assistance
+          </p>
+          <p className="text-xs text-blue-300 mb-8">
+            Project Architected, Designed, and Developed by <a href="https://www.linkedin.com/in/ryantusi/" className='text-blue-100 hover:text-green-300 transition-colors' target='_blank'>
+            Ryan Tusi</a>, a <span className='text-blue-100 hover:text-green-300 transition-colors'>
+              Full Stack + AI/ML Engineer</span> in Maritime & Logistics Industry
           </p>
           <div className="flex items-center justify-center space-x-4 text-sm">
             <div className="bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
@@ -102,7 +107,7 @@ function Home() {
       </div>
 
       {/* Search Forms Section */}
-      <div className="container mx-auto px-4 py-16">
+      <div className="container mx-auto px-4 py-16" id="search">
         <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-8">
           {/* Single Vessel Search */}
           <div className="bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-shadow">
@@ -150,7 +155,7 @@ function Home() {
 
             <div className="mt-6 p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Example IMOs:</strong> 9626390, 9308444, 9711819
+                <strong>Example IMOs:</strong> 9626390, 9377418, 9711819 (wrong imo)
               </p>
             </div>
           </div>
@@ -178,7 +183,7 @@ function Home() {
                     setBatchIMOs(e.target.value);
                     setBatchError('');
                   }}
-                  placeholder="e.g., 9626390, 9308444, 9711819"
+                  placeholder="e.g., 9626390, 9377418, 9711819"
                   rows="4"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition resize-none"
                 />
@@ -218,21 +223,12 @@ function Home() {
           <div className="h-[500px]">
             <MapComponent 
               center={[38.3, 29.9]} // Suez Canal coordinates
-              zoom={3}
+              zoom={2.5}
               markers={[]}
             />
           </div>
         </div>
       </div>
-
-      {/* Footer */}
-      <footer className="bg-gray-800 text-white py-8">
-        <div className="container mx-auto px-4 text-center">
-          <p className="text-gray-400">
-            © 2025 Live Ship Vessel Tracker • Powered by AIS Data & Mapbox
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }
