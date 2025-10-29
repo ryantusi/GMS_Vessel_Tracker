@@ -39,15 +39,14 @@ async function getFullData(imo) {
   // AIS Friends Cookie retrieved from browser session under network tab -> request header -> cookie (keep up to data)
   const STATIC_COOKIE = process.env.AIS_COOKIE;
 
-  // FIX: Switched to lowercase 'cookie' and encapsulated complex headers
+  // encapsulated complex headers
   const headers = {
     "User-Agent": getRandomUA(),
     Accept: "application/json,text/plain,*/*",
     "Accept-Language": "en-US,en;q=0.9",
     Referer: "https://www.aisfriends.com/",
     Connection: "keep-alive",
-    "Accept-Encoding": "gzip, deflate, br", // Mimic browser compression
-    cookie: STATIC_COOKIE,
+    "Accept-Encoding": "gzip, deflate, br",
   };
   // !!! --- END FIX --- !!!
 
