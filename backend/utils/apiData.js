@@ -2,6 +2,9 @@
 import fetch from "node-fetch";
 import "dotenv/config";
 
+// Time 
+const time = new Date();
+
 // Rotate common user agents (mimic real browsers)
 const userAgents = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:129.0) Gecko/20100101 Firefox/129.0",
@@ -54,10 +57,10 @@ async function getFullData(imo) {
     const data = await fetchWithRetry(url, { headers }, 4, 1200);
 
     if (!data || !data.imo) {
-      console.log(`[No Data Returned for IMO: ${imo}]`);
+      console.log(`[No Data Returned for IMO: ${imo}] + ${time.toLocaleTimeString()}`);
       return { imo, error: "No data" };
     }
-    console.log(`[Data Retrieved for IMO: ${imo}]`);
+    console.log(`[Data Retrieved for IMO: ${imo}] + ${time.toLocaleTimeString()}`);
     return data;
   } catch (error) {
     console.error(`[Data Fetch Error for ${imo}] Details: ${error.message}`);
@@ -97,9 +100,7 @@ async function getBatchData(imoList) {
     results.push(...batchResults);
   }
 
-  console.log("Final Results:");
-  console.log(results);
-
+  console.log(`Batch Data Retrieval Complete ${time.toLocaleTimeString()} for IMOs: [${imoList.join(", ")}]`);
   return results;
 }
 
