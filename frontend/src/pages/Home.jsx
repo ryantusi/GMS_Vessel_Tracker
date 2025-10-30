@@ -155,7 +155,7 @@ function Home() {
 
             <div className="mt-6 p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Example IMOs:</strong> 9626390, 9377418, 9711819 (wrong imo)
+                <strong>Example IMOs:</strong> 9626390, 9377418, 7349106, 9711819 (wrong imo)
               </p>
             </div>
           </div>
@@ -183,7 +183,7 @@ function Home() {
                     setBatchIMOs(e.target.value);
                     setBatchError('');
                   }}
-                  placeholder="e.g., 9626390, 9377418, 9711819"
+                  placeholder="e.g., 9626390, 9377418, 7349106, 9711819"
                   rows="4"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition resize-none"
                 />

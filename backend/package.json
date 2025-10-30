@@ -25,7 +25,8 @@
     "express": "^4.21.2",
     "mapbox-gl": "^3.16.0",
     "node-fetch": "^3.3.2",
-    "react-map-gl": "^8.1.0"
+    "react-map-gl": "^8.1.0",
+    "redis": "^5.9.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

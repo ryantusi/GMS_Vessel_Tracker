@@ -39,9 +39,6 @@ async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
 async function getFullData(imo) {
   const url = `https://www.aisfriends.com/vessel/position/imo:${imo}`;
 
-  // AIS Friends Cookie retrieved from browser session under network tab -> request header -> cookie (keep up to data)
-  const STATIC_COOKIE = process.env.AIS_COOKIE;
-
   // encapsulated complex headers
   const headers = {
     "User-Agent": getRandomUA(),
