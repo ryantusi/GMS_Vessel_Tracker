@@ -87,7 +87,7 @@ function Home() {
           <p className="text-xl text-blue-100 mb-8">
             Track vessels in real-time using AIS data • Monitor ship locations worldwide • AI-Powered Tracking Assistance
           </p>
-          <p className="text-xs text-blue-300 mb-8">
+          <p className="text-xs text-blue-300 mb-4">
             Project Architected, Designed, and Developed by <a href="https://www.linkedin.com/in/ryantusi/" className='text-blue-100 hover:text-green-300 transition-colors' target='_blank'>
             Ryan Tusi</a>, a <span className='text-blue-100 hover:text-green-300 transition-colors'>
               Full Stack + AI/ML Engineer</span> in Maritime & Logistics Industry
@@ -158,6 +158,10 @@ function Home() {
                 <strong>Example IMOs:</strong> 9626390, 9377418, 7349106, 9711819 (wrong imo)
               </p>
             </div>
+            <p className="text-red-400 text-xs mt-2">
+              <strong>! Disclaimer: </strong>
+              This is a prototype demo version using static data for demonstration purposes.
+            </p>
           </div>
 
           {/* Batch Vessel Search */}

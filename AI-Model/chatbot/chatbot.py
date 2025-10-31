@@ -4,6 +4,7 @@ import re
 import requests
 import time
 import random
+from pathlib import Path
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
@@ -29,7 +30,7 @@ SYSTEM_INSTRUCTION_PROMPT = """You are COMPASS, a specialized, highly constraine
 **PROCEDURES & FUNCTION CALLING:**
 
 A. **Initial Greeting (First Turn Only):**
-    "Welcome! I'm COMPASS, your specialized maritime assistant. I can look up vessel details, confirm destinations, and decode AIS codes. To start, please provide the ship's **7-digit IMO ID**."
+    "Welcome! I'm COMPASS, your specialized maritime assistant. I can look up vessel details, confirm destinations, and decode AIS codes. To start, please provide the ship's **7-digit IMO ID**. Disclaimer: This is a prototype demo version and I use static data for demonstration purposes to showcase my ability."
 
 B. **Data Lookup (Function Call):**
     If the user provides a valid 7-digit IMO ID, you **MUST** call the `get_vessel_data` function with the IMO ID as the argument. **DO NOT generate a textual response until the function result is returned.**
@@ -80,64 +81,62 @@ D4. **Stale Data Warning:** (If `timestamp_of_position` indicates data is older 
     * **Response Pattern:** "Note: The last position update was [Interpreted date/time]. Data may be stale."
 """
 
-# ---------------- AIS API HELPER FUNCTIONS ----------------
 
-user_agents = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:129.0) Gecko/20100101 Firefox/129.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17 Safari/605.1.15",
-]
+# ---------------- MOCK DATABASE LOADER ----------------
+# Load mock vessels database
+MOCK_DB_PATH = Path(__file__).parent / "../mock-vessels.json"
+mock_database = []
 
-def get_random_ua():
-    """Rotate user agents."""
-    return random.choice(user_agents)
+try:
+    with open(MOCK_DB_PATH, 'r', encoding='utf-8') as f:
+        mock_database = json.load(f)
+    print(f"✅ Mock database loaded: {len(mock_database)} vessels")
+except FileNotFoundError:
+    print(f"❌ Mock database not found at: {MOCK_DB_PATH}")
+    mock_database = []
+except json.JSONDecodeError as e:
+    print(f"❌ Failed to parse mock database: {e}")
+    mock_database = []
 
-def fetch_with_retry(url, headers, retries=3, delay=1.0):
-    """Retry logic with exponential backoff."""
-    for attempt in range(1, retries + 1):
-        try:
-            response = requests.get(url, headers=headers, timeout=15) 
-            if response.status_code == 200:
-                return response.json()
-            else:
-                raise Exception(f"HTTP error! status: {response.status_code}")
-        except Exception as e:
-            if attempt == retries:
-                raise e
-            time.sleep(delay * attempt)
+# ---------------- MOCK API HELPER FUNCTION ----------------
+def simulate_delay(min_ms=50, max_ms=200):
+    """Simulate network delay for realism."""
+    delay = (min_ms + (max_ms - min_ms) * 0.5) / 1000  # Convert to seconds
+    time.sleep(delay)
 
-
-# ---------------- GEMINI TOOL FUNCTION ----------------
-
+# ---------------- GEMINI TOOL FUNCTION (MOCK VERSION) ----------------
 def get_vessel_data(imo_id: str) -> str:
     """
-    Retrieves vessel data in JSON format using a 7-digit IMO ID.
+    Retrieves vessel data in JSON format using a 7-digit IMO ID from mock database.
     
     Returns a JSON string containing the vessel's details. Key fields include: 
     'name', 'detailed_type', 'flag', 'ais_destination', and 'navigational_status'.
     Returns an empty JSON string ('{}') if the IMO ID is invalid or data is unavailable.
     """
     
-    url = f"https://www.aisfriends.com/vessel/position/imo:{imo_id}"
-    headers = {
-        "User-Agent": get_random_ua(),
-        "Accept": "application/json,text/plain,*/*",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://www.aisfriends.com/",
-        "Connection": "keep-alive",
-    }
-
+    # Simulate network delay
+    simulate_delay()
+    
     try:
-        data = fetch_with_retry(url, headers, retries=4, delay=1.2)
+        # Convert IMO to integer for comparison
+        imo_number = int(imo_id)
         
-        if not data or not data.get("imo"):
+        # Search for vessel in mock database
+        vessel = next((v for v in mock_database if v.get('imo') == imo_number), None)
+        
+        if not vessel:
+            print(f"[DEBUG] No data found for IMO {imo_id}")
             return json.dumps({})
-             
-        return json.dumps(data)
         
+        print(f"[DEBUG] Data retrieved for IMO {imo_id}: {vessel.get('name', 'Unknown')}")
+        return json.dumps(vessel)
+        
+    except ValueError:
+        print(f"[DEBUG] Invalid IMO format: {imo_id}")
+        return json.dumps({})
     except Exception as e:
-        print(f"[DEBUG] API Error during data retrieval for IMO {imo_id}: {e}")
-        return json.dumps({}) 
+        print(f"[DEBUG] Error during data retrieval for IMO {imo_id}: {e}")
+        return json.dumps({})
 
 
 # ---------------- CHATBOT CLASS ----------------

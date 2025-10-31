@@ -19,6 +19,10 @@ function Footer() {
             <p className="text-gray-400 text-sm">
               Track vessels worldwide with real-time AIS data and intelligent port matching.
             </p>
+            <p className="text-red-400 text-xs mt-2">
+              <strong>! Disclaimer: </strong>
+              This is a prototype demo version using static data
+            </p>
           </div>
 
           {/* Quick Links */}

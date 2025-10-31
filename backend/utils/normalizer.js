@@ -96,7 +96,28 @@ async function normalizeDestination(rawDest) {
     return { error: "API not configured" };
   }
 
+  // FIX: Handle null, undefined, or non-string values
+  if (!rawDest || typeof rawDest !== "string") {
+    console.warn(
+      `Invalid destination value: ${rawDest} (type: ${typeof rawDest})`
+    );
+    return {
+      matched: false,
+      reportedDestination: rawDest?.toString() || "Unknown",
+      error: "Invalid destination format",
+    };
+  }
+
   const dest = rawDest.trim().toUpperCase();
+
+  // Handle empty string after trim
+  if (!dest) {
+    return {
+      matched: false,
+      reportedDestination: "Unknown",
+      error: "Empty destination",
+    };
+  }
 
   try {
     const response = await fetch(DEST_API, {

@@ -1,77 +1,72 @@
-// test-multi.js
-import fetch from "node-fetch";
-import "dotenv/config";
+// Mock Database Implementation - Deployment Version
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 
-// Time 
-const time = new Date();
+// Get current directory
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-// Rotate common user agents (mimic real browsers)
-const userAgents = [
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:129.0) Gecko/20100101 Firefox/129.0",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129 Safari/537.36",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17 Safari/605.1.15",
-];
-
-function getRandomUA() {
-  return userAgents[Math.floor(Math.random() * userAgents.length)];
+// Load mock database
+let mockDatabase = [];
+try {
+  const dbPath = join(__dirname, "../mock-vessels.json");
+  const dbContent = readFileSync(dbPath, "utf-8");
+  mockDatabase = JSON.parse(dbContent);
+  console.log(`✅ Mock database loaded: ${mockDatabase.length} vessels`);
+} catch (error) {
+  console.error("❌ Failed to load mock database:", error.message);
+  mockDatabase = [];
 }
 
-async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      const response = await fetch(url, options);
+// Simulate API delay for realism
+const simulateDelay = (ms = 100) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
-      if (response.ok) {
-        return response.json();
-      } else {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-    } catch (error) {
-      if (attempt === retries) {
-        throw error; 
-      } // exponential backoff
-      await new Promise((res) => setTimeout(res, delay * attempt));
-    }
-  }
-}
-
-// Get's Raw Data from AISFriends API
+/**
+ * Get full vessel data by IMO (Mock version)
+ * @param {string|number} imo - IMO number
+ * @returns {Promise<Object>} Vessel data or error
+ */
 async function getFullData(imo) {
-  const url = `https://www.aisfriends.com/vessel/position/imo:${imo}`;
-
-  // encapsulated complex headers
-  const headers = {
-    "User-Agent": getRandomUA(),
-    Accept: "application/json,text/plain,*/*",
-    "Accept-Language": "en-US,en;q=0.9",
-    Referer: "https://www.aisfriends.com/",
-    Connection: "keep-alive",
-    "Accept-Encoding": "gzip, deflate, br",
-  };
-  // !!! --- END FIX --- !!!
+  const time = new Date();
+  await simulateDelay(50 + Math.random() * 150);
 
   try {
-    const data = await fetchWithRetry(url, { headers }, 4, 1200);
+    const imoNumber = parseInt(imo);
+    const vessel = mockDatabase.find((v) => v.imo === imoNumber);
 
-    if (!data || !data.imo) {
-      console.log(`[No Data Returned for IMO: ${imo}] + ${time.toLocaleTimeString()}`);
+    if (!vessel) {
+      console.log(
+        `[No Data Returned for IMO: ${imo}] + ${time.toLocaleTimeString()}`
+      );
       return { imo, error: "No data" };
     }
-    console.log(`[Data Retrieved for IMO: ${imo}] + ${time.toLocaleTimeString()}`);
-    return data;
+
+    console.log(
+      `[Data Retrieved for IMO: ${imo}] + ${time.toLocaleTimeString()}`
+    );
+
+    // FIX: Return deep copy
+    return JSON.parse(JSON.stringify(vessel));
   } catch (error) {
     console.error(`[Data Fetch Error for ${imo}] Details: ${error.message}`);
     return { imo, error: error.message };
   }
 }
 
-// Extracts and normalizes needed key vessel data
+/**
+ * Extract and normalize key vessel data
+ * @param {string|number} imo - IMO number
+ * @returns {Promise<Object>} Normalized vessel data
+ */
 async function getVesselData(imo) {
   const data = await getFullData(imo);
 
   if (data.error) {
     return { imo, error: data.error };
   }
+
   return {
     imo: data.imo || imo,
     name: data.name || "Unknown",
@@ -82,22 +77,23 @@ async function getVesselData(imo) {
   };
 }
 
-// Run in batches of 20 to avoid rate limits
+/**
+ * Get batch vessel data (no rate limiting needed for mock)
+ * @param {Array<string|number>} imoList - Array of IMO numbers
+ * @returns {Promise<Array>} Array of vessel data
+ */
 async function getBatchData(imoList) {
-  const batchSize = 20;
-  const results = [];
+  const time = new Date();
 
-  for (let i = 0; i < imoList.length; i += batchSize) {
-    const batch = imoList.slice(i, i + batchSize);
+  // Process all at once (no rate limiting needed for mock)
+  const results = await Promise.all(imoList.map((imo) => getVesselData(imo)));
 
-    const batchResults = await Promise.all(
-      batch.map((imo) => getVesselData(imo))
-    );
+  console.log(
+    `Batch Data Retrieval Complete ${time.toLocaleTimeString()} for IMOs: [${imoList.join(
+      ", "
+    )}]`
+  );
 
-    results.push(...batchResults);
-  }
-
-  console.log(`Batch Data Retrieval Complete ${time.toLocaleTimeString()} for IMOs: [${imoList.join(", ")}]`);
   return results;
 }
 

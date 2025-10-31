@@ -4,19 +4,19 @@ import "dotenv/config";
 import { getFullData, getVesselData, getBatchData } from "./utils/apiData.js";
 import { normalizeData } from "./utils/normalizer.js";
 import { createSingleVesselMap, createBatchVesselMap } from "./utils/mapbox.js";
-import cacheService from "./utils/cache.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Production CORS
+// Production
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",")
-  : ["http://localhost:3000", "http://localhost:5173"];
+  : ["http://localhost:3000"];
 
 app.use(
   cors({
     origin: function (origin, callback) {
+      // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) return callback(null, true);
 
       if (allowedOrigins.indexOf(origin) === -1) {
@@ -28,6 +28,7 @@ app.use(
   })
 );
 
+// Middleware
 app.use(express.json());
 
 // Root route
@@ -35,51 +36,14 @@ app.get("/", (req, res) => {
   res.json({
     message: "Live Ship Vessel Tracker API",
     version: "1.0.0",
-    cache: cacheService.isConnected() ? "enabled" : "disabled",
     endpoints: {
       single: "/api/vessel/:imo",
       batch: "/api/vessels/batch",
-      cacheStats: "/api/cache/stats",
-      clearCache: "DELETE /api/cache/vessel/:imo",
     },
   });
 });
 
-// Cache stats endpoint
-app.get("/api/cache/stats", async (req, res) => {
-  try {
-    const stats = await cacheService.getStats();
-    res.json({
-      success: true,
-      cacheEnabled: cacheService.isConnected(),
-      ...stats,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: "Failed to get cache stats",
-    });
-  }
-});
-
-// Clear specific vessel cache (manual invalidation)
-app.delete("/api/cache/vessel/:imo", async (req, res) => {
-  try {
-    const { imo } = req.params;
-    await cacheService.deleteVessel(imo);
-    res.json({
-      success: true,
-      message: `Cache cleared for IMO ${imo}`,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: "Failed to clear cache",
-    });
-  }
-});
-
-// Single Vessel Route - WITH CACHING
+// Single Vessel Route
 app.get("/api/vessel/:imo", async (req, res) => {
   try {
     const { imo } = req.params;
@@ -92,49 +56,31 @@ app.get("/api/vessel/:imo", async (req, res) => {
       });
     }
 
-    console.log(`\n🔍 Fetching data for IMO: ${imo}`);
+    console.log(`Fetching data for IMO: ${imo}`);
 
-    // Step 1: Check cache first
-    let normalizedData = await cacheService.getVessel(imo);
-    let fromCache = false;
+    // 1. Get raw vessel data
+    const rawData = await getFullData(imo);
 
-    if (normalizedData) {
-      // Cache hit! Use cached data
-      fromCache = true;
-      console.log(`✅ Using cached data for IMO ${imo}`);
-    } else {
-      // Cache miss - fetch from API
-      console.log(`🌐 Fetching from API for IMO ${imo}`);
-
-      // Get raw vessel data from API
-      const rawData = await getFullData(imo);
-
-      // Check if there was an error fetching data
-      if (rawData.error) {
-        return res.status(404).json({
-          success: false,
-          error: rawData.error,
-          imo: imo,
-        });
-      }
-
-      // Normalize the data
-      normalizedData = await normalizeData(rawData);
-
-      // Store in cache for 7 days
-      await cacheService.setVessel(imo, normalizedData);
+    // Check if there was an error fetching data
+    if (rawData.error) {
+      return res.status(404).json({
+        success: false,
+        error: rawData.error,
+        imo: imo,
+      });
     }
 
-    // Create map with vessel and destination markers
+    // 2. Normalize the data
+    const normalizedData = await normalizeData(rawData);
+
+    // 3. Create map with vessel and destination markers
     const mapData = createSingleVesselMap(normalizedData);
 
-    // Return response with cache indicator
+    // 4. Return response
     res.json({
       success: true,
       vessel: normalizedData,
       map: mapData,
-      cached: fromCache, // Indicates if data came from cache
-      cachedAt: normalizedData.cached_at || new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error in /api/vessel/:imo:", error);
@@ -146,7 +92,7 @@ app.get("/api/vessel/:imo", async (req, res) => {
   }
 });
 
-// Batch Vessels Route - WITH CACHING
+// Batch Vessels Route
 app.post("/api/vessels/batch", async (req, res) => {
   try {
     const { imos } = req.body;
@@ -170,65 +116,36 @@ app.post("/api/vessels/batch", async (req, res) => {
       });
     }
 
-    console.log(`\n📦 Batch request for ${imos.length} vessels`);
+    console.log(`Fetching batch data for ${imos.length} vessels...`);
 
-    // Step 1: Check cache for all IMOs
-    const cacheResults = await cacheService.getBatch(imos);
-    const cachedVessels = Object.values(cacheResults.cached);
-    const missingImos = cacheResults.missing;
+    // 1. Get raw batch data
+    const rawBatchData = await getBatchData(imos);
 
-    console.log(
-      `📊 Cache: ${cachedVessels.length} hits, ${missingImos.length} misses`
+    // 2. Normalize all vessel data
+    const normalizedBatchData = await Promise.all(
+      rawBatchData.map(async (rawData) => {
+        // Skip normalization if there was an error fetching
+        if (rawData.error) {
+          return rawData;
+        }
+        return await normalizeData(rawData);
+      })
     );
 
-    let fetchedVessels = [];
-    let failedVessels = [];
+    // 3. Separate successful and failed vessels
+    const successfulVessels = normalizedBatchData.filter((v) => !v.error);
+    const failedVessels = normalizedBatchData.filter((v) => v.error);
 
-    // Step 2: Fetch missing vessels from API
-    if (missingImos.length > 0) {
-      console.log(`🌐 Fetching ${missingImos.length} vessels from API`);
+    // 4. Create map with all vessel locations (no destination ports for batch)
+    const mapData = createBatchVesselMap(successfulVessels);
 
-      // Get raw batch data for missing IMOs
-      const rawBatchData = await getBatchData(missingImos);
-
-      // Normalize all vessel data
-      const normalizedBatchData = await Promise.all(
-        rawBatchData.map(async (rawData) => {
-          if (rawData.error) {
-            return rawData; // Keep error objects as-is
-          }
-          return await normalizeData(rawData);
-        })
-      );
-
-      // Separate successful and failed from fetched data
-      const successfulFetched = normalizedBatchData.filter((v) => !v.error);
-      const failedFetched = normalizedBatchData.filter((v) => v.error);
-
-      fetchedVessels = successfulFetched;
-      failedVessels = failedFetched; // Store failed vessels
-
-      // Cache only the successfully fetched vessels
-      if (successfulFetched.length > 0) {
-        await cacheService.setBatch(successfulFetched);
-      }
-    }
-
-    // Step 3: Combine cached and successfully fetched vessels
-    const allSuccessfulVessels = [...cachedVessels, ...fetchedVessels];
-
-    // Step 4: Create map with all successful vessel locations
-    const mapData = createBatchVesselMap(allSuccessfulVessels);
-
-    // Step 5: Return response with cache stats
+    // 5. Return response
     res.json({
       success: true,
       totalRequested: imos.length,
-      totalSuccess: allSuccessfulVessels.length,
+      totalSuccess: successfulVessels.length,
       totalFailed: failedVessels.length,
-      cachedCount: cachedVessels.length,
-      fetchedCount: fetchedVessels.length,
-      vessels: allSuccessfulVessels,
+      vessels: successfulVessels,
       failed: failedVessels.length > 0 ? failedVessels : undefined,
       map: mapData,
     });
@@ -250,20 +167,11 @@ app.use((req, res) => {
   });
 });
 
-// Graceful shutdown
-process.on("SIGTERM", async () => {
-  console.log("SIGTERM received, closing server...");
-  process.exit(0);
-});
-
 // Start server
 app.listen(PORT, () => {
   console.log(`🚢 Ship Tracker API running on port ${PORT}`);
   console.log(`📍 Single vessel: GET http://localhost:${PORT}/api/vessel/:imo`);
   console.log(
     `📍 Batch vessels: POST http://localhost:${PORT}/api/vessels/batch`
-  );
-  console.log(
-    `💾 Redis cache: ${cacheService.isConnected() ? "ENABLED" : "DISABLED"}`
   );
 });
