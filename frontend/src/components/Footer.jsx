@@ -9,7 +9,7 @@ function Footer() {
           <div>
             <div className="flex items-center mb-4">
               <div>
-                <img src="/src/assets/ship-tracker.png" width="80" height="80" />
+                <img src="/ship-tracker.png" width="80" height="80" />
               </div>
               <div>
                 <h3 className="text-xl font-bold">Vessel Tracker</h3>
