@@ -1,9 +1,0 @@
-{
-  "dependencies": {
-    "axios": "^1.12.2",
-    "fs": "^0.0.1-security",
-    "fuse.js": "^7.1.0",
-    "node-fetch": "^3.3.2",
-    "voca": "^1.4.1"
-  }
-}
